@@ -37,6 +37,14 @@ st.markdown(f"""
     padding:0.25rem 0.75rem; border-radius:999px;
     font-size:0.75rem; font-weight:600; letter-spacing:0.04em;
   }}
+  .top-banner .sw-btn {{
+    background:rgba(255,255,255,0.18); color:#fff;
+    border:1px solid rgba(255,255,255,0.35); border-radius:8px;
+    padding:0.28rem 0.9rem; font-size:0.78rem; font-weight:600;
+    cursor:pointer; font-family:'Inter',sans-serif;
+    transition:background 0.2s;
+  }}
+  .top-banner .sw-btn:hover {{ background:rgba(255,255,255,0.3); }}
   .inner {{ padding:2rem 2.5rem; }}
   .step-header {{ font-size:1.35rem; font-weight:700; color:#111827; margin-bottom:0.2rem; }}
   .step-sub    {{ font-size:0.88rem; color:#6b7280; margin-bottom:1.5rem; }}
@@ -73,18 +81,13 @@ st.markdown(f"""
     font-size:0.7rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
   }}
 
-  /* Section input card */
-  .section-card {{
-    background:#fff; border-radius:12px; padding:1.75rem 2rem;
-    box-shadow:0 1px 4px rgba(0,0,0,0.07),0 4px 16px rgba(0,0,0,0.05);
-    margin-bottom:1.25rem;
-  }}
-  .section-card h3 {{
-    color:{NAVY}; font-size:1rem; font-weight:700;
-    margin-bottom:0.25rem;
-  }}
-  .section-card .sec-sub {{
-    color:#6b7280; font-size:0.83rem; margin-bottom:1.25rem;
+  /* White card for input sections */
+  .stForm {{
+    background-color: #ffffff !important;
+    padding: 2rem !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05) !important;
+    border: none !important;
   }}
   .col-headers {{
     display:grid; grid-template-columns:2fr 1fr 1fr;
@@ -104,17 +107,11 @@ YEARS  = [str(y) for y in range(2024, 2028)]
 
 # ── Simple mode steps ─────────────────────────────────────────────────────────
 SIMPLE_STEPS = [
-    {"key":"income",            "title":"Monthly Income",
-     "subtitle":"Your primary salary, wages, or business income for the month."},
-    {"key":"additional_income", "title":"Additional Income",
-     "subtitle":"Side income, freelance work, rental income, or any other earnings."},
-    {"key":"debt",              "title":"Debt Repayments",
-     "subtitle":"Home loan, car finance, credit card minimums, personal loans."},
-    {"key":"fixed",             "title":"Fixed Expenses",
-     "subtitle":"Recurring bills that stay the same: insurance, subscriptions, rates."},
-    {"key":"variable",          "title":"Variable Expenses",
-     "subtitle":"Groceries, fuel, entertainment, dining out — things that change monthly."},
-    {"key":"savings",           "title":"Savings & Investments",
+    {"key":"income",   "title":"Income",
+     "subtitle":"Enter all sources of monthly income."},
+    {"key":"expenses", "title":"Monthly Expenses",
+     "subtitle":"Enter your debt repayments, fixed costs, and variable spending."},
+    {"key":"savings",  "title":"Savings & Investments",
      "subtitle":"Emergency fund contributions, retirement annuity, unit trusts, tax-free savings."},
 ]
 
@@ -183,7 +180,7 @@ COMPLEX_SECTIONS = [
     {
         "key": "savings",
         "title": "Savings & Investments",
-        "subtitle": "Monthly contributions to wealth-building and emergency reserves.",
+        "subtitle": "Monthly contributions to wealth-building and emergency reserves. Savings and investments should be an essential item in everyone's budget.",
         "fields": [
             ("ra",              "Retirement Annuities"),
             ("unit_trusts",     "Unit Trusts"),
@@ -234,16 +231,16 @@ def init_state():
 
 init_state()
 
-def fmt(v):  return f"R {v:,.2f}"
+def fmt(v):  return f"R {int(round(v)):,}"
 def pct(v):  return f"{v:.1f}%"
 
 def zar_input(label, key, default=0.0):
     return st.number_input(label, min_value=0.0,
                            value=float(st.session_state.get(key, default)),
-                           step=100.0, format="%.2f", key=key)
+                           step=100.0, format="%.0f", key=key)
 
 # ── Banner ────────────────────────────────────────────────────────────────────
-def banner(sub=""):
+def banner(sub="", show_switch=False, switch_key="", progress=None, progress_label=""):
     month_str = (f"{st.session_state.month} {st.session_state.year}"
                  if st.session_state.month else "")
     right_parts = []
@@ -254,10 +251,18 @@ def banner(sub=""):
         right_parts.append(f'<span class="mode-badge">{label}</span>')
     right_html = "&nbsp;&nbsp;".join(right_parts) if right_parts else (
         f'<span class="sub">{sub}</span>' if sub else "")
+
     st.markdown(
         f'<div class="top-banner"><h1>Monthly Budget Review</h1>'
-        f'<div style="display:flex;align-items:center;gap:0.75rem;">{right_html}</div></div>',
+        f'<div style="display:flex;align-items:center;gap:0.75rem;">'
+        f'{right_html}'
+        f'</div></div>',
         unsafe_allow_html=True)
+
+    if progress is not None:
+        st.progress(progress)
+        st.markdown(f"<p style='font-size:0.78rem;color:#374151;margin-top:-0.4rem;'>"
+                    f"{progress_label}</p>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: Mode Selection
@@ -286,8 +291,11 @@ def page_mode_select():
             </div>
             """, unsafe_allow_html=True)
             if st.button("Select Simple Budget", use_container_width=True, key="btn_simple"):
-                st.session_state.mode = "simple"
-                st.session_state.page = "month"
+                st.session_state.mode  = "simple"
+                st.session_state.month = MONTHS[datetime.now().month - 1]
+                st.session_state.year  = str(datetime.now().year)
+                st.session_state.page  = "step"
+                st.session_state.step  = 0
                 st.rerun()
 
         with c2:
@@ -298,8 +306,11 @@ def page_mode_select():
             </div>
             """, unsafe_allow_html=True)
             if st.button("Select Complex Budget", use_container_width=True, key="btn_complex"):
-                st.session_state.mode = "complex"
-                st.session_state.page = "month"
+                st.session_state.mode    = "complex"
+                st.session_state.month   = MONTHS[datetime.now().month - 1]
+                st.session_state.year    = str(datetime.now().year)
+                st.session_state.page    = "cx_step"
+                st.session_state.cx_step = 0
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -341,50 +352,154 @@ def page_month():
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: Simple steps
 # ══════════════════════════════════════════════════════════════════════════════
+
+# Field definitions for each simple step
+SIMPLE_INCOME_FIELDS = [
+    ("income",      "Income (After Tax)"),
+    ("income_add",  "Additional Incomes"),
+]
+SIMPLE_EXPENSE_FIELDS = [
+    ("exp_debt",     "Debt Repayments"),
+    ("exp_fixed",    "Fixed Expenses (Bills that stay the same e.g. rent)"),
+    ("exp_variable", "Variable Expenses (Spending that changes month to month based on your lifestyle, e.g. groceries, restaurants)"),
+]
+SIMPLE_SAVINGS_FIELDS = [
+    ("sav_savings",  "Savings (what you invest)"),
+]
+
+def _col_hint():
+    h1, h2, h3 = st.columns([3, 1, 1])
+    with h1: pass
+    with h2:
+        st.markdown(
+            "<div style='font-size:0.7rem;font-weight:600;color:#6b7280;"
+            "text-transform:uppercase;letter-spacing:0.05em;text-align:center;'>"
+            "Projected<br><span style='font-weight:400;font-style:italic;"
+            "text-transform:none;letter-spacing:0;'>What you think</span></div>",
+            unsafe_allow_html=True)
+    with h3:
+        st.markdown(
+            "<div style='font-size:0.7rem;font-weight:600;color:#6b7280;"
+            "text-transform:uppercase;letter-spacing:0.05em;text-align:center;'>"
+            "Actual<br><span style='font-weight:400;font-style:italic;"
+            "text-transform:none;letter-spacing:0;'>What your bank statement says</span></div>",
+            unsafe_allow_html=True)
+    st.markdown("<div style='border-top:1px solid #e5e7eb;margin:0.3rem 0 0.5rem;'></div>",
+                unsafe_allow_html=True)
+
+def _field_row(label, fkey, data_store):
+    p_prev = data_store.get(fkey, {}).get("proj", 0.0)
+    a_prev = data_store.get(fkey, {}).get("actual", 0.0)
+    c1, c2, c3 = st.columns([3, 1, 1])
+    with c1:
+        st.markdown(f"<p style='padding-top:0.45rem;color:#111827;font-size:0.88rem;"
+                    f"margin:0;'>{label}</p>", unsafe_allow_html=True)
+    with c2:
+        p_val = st.number_input("", min_value=0.0, value=float(p_prev),
+                                step=100.0, format="%.0f",
+                                key=f"_s_{fkey}_p", label_visibility="collapsed")
+    with c3:
+        a_val = st.number_input("", min_value=0.0, value=float(a_prev),
+                                step=100.0, format="%.0f",
+                                key=f"_s_{fkey}_a", label_visibility="collapsed")
+    return fkey, p_val, a_val
+
 def page_simple_step():
     idx   = st.session_state.step
     total = len(SIMPLE_STEPS)
     s     = SIMPLE_STEPS[idx]
 
-    banner()
+    banner(progress=(idx + 1) / total, progress_label=f"Step {idx+1} of {total}")
     st.markdown('<div class="inner">', unsafe_allow_html=True)
 
-    _, col_sw, _ = st.columns([3, 1, 3])
-    with col_sw:
-        if st.button("Switch Mode", use_container_width=True, key="sw_simple"):
-            st.session_state.page = "mode_select"
-            st.rerun()
+    data = st.session_state.data
+    collected = {}
 
-    st.progress((idx + 1) / total)
-    st.markdown(f"<p style='font-size:0.78rem;color:#374151;margin-top:-0.4rem;'>"
-                f"Step {idx+1} of {total}</p>", unsafe_allow_html=True)
-
-    col = st.columns([1, 2, 1])[1]
-    with col:
-        st.markdown(f'<div class="step-header">{s["title"]}</div>'
-                    f'<div class="step-sub">{s["subtitle"]}</div>',
+    _, mid, _ = st.columns([1, 4, 1])
+    with mid:
+        with st.form(key=f"simple_form_{idx}"):
+            # ── Step 0: Income ────────────────────────────────────────────────
+            if idx == 0:
+                st.markdown(f'<div class="step-header">{s["title"]}</div>'
+                            f'<div class="step-sub">{s["subtitle"]}</div>',
+                            unsafe_allow_html=True)
+                _col_hint()
+                for fkey, flabel in SIMPLE_INCOME_FIELDS:
+                    fk, pv, av = _field_row(flabel, fkey, data)
+                    collected[fk] = {"proj": pv, "actual": av}
+                sub_p = sum(v["proj"]   for v in collected.values())
+                sub_a = sum(v["actual"] for v in collected.values())
+                st.markdown(
+                    f"<div style='border-top:2px solid {NAVY};margin-top:0.75rem;padding-top:0.6rem;"
+                    f"display:grid;grid-template-columns:3fr 1fr 1fr;gap:0.75rem;'>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;'>Total</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_p)}</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_a)}</span></div>",
                     unsafe_allow_html=True)
-        key  = s["key"]
-        prev = st.session_state.data.get(key, {"proj": 0.0, "actual": 0.0})
-        c1, c2 = st.columns(2)
-        with c1: proj   = zar_input("Projected (R)", f"_sp_{key}", prev["proj"])
-        with c2: actual = zar_input("Actual (R)",    f"_sa_{key}", prev["actual"])
-        st.markdown("<br>", unsafe_allow_html=True)
-        nl, nr = st.columns(2)
-        with nl:
-            lbl = "Back" if idx > 0 else "Change Month"
-            if st.button(lbl, use_container_width=True, key="s_back"):
-                st.session_state.data[key] = {"proj": proj, "actual": actual}
-                if idx > 0: st.session_state.step -= 1
-                else:        st.session_state.page = "month"
-                st.rerun()
-        with nr:
-            lbl = "Next" if idx < total - 1 else "View Dashboard"
-            if st.button(lbl, use_container_width=True, key="s_next"):
-                st.session_state.data[key] = {"proj": proj, "actual": actual}
-                if idx < total - 1: st.session_state.step += 1
-                else:                st.session_state.page = "dashboard"
-                st.rerun()
+
+            # ── Step 1: Expenses ──────────────────────────────────────────────
+            elif idx == 1:
+                st.markdown(f'<div class="step-header">{s["title"]}</div>'
+                            f'<div class="step-sub">{s["subtitle"]}</div>',
+                            unsafe_allow_html=True)
+                _col_hint()
+                for fkey, flabel in SIMPLE_EXPENSE_FIELDS:
+                    fk, pv, av = _field_row(flabel, fkey, data)
+                    collected[fk] = {"proj": pv, "actual": av}
+                sub_p = sum(v["proj"]   for v in collected.values())
+                sub_a = sum(v["actual"] for v in collected.values())
+                st.markdown(
+                    f"<div style='border-top:2px solid {NAVY};margin-top:0.75rem;padding-top:0.6rem;"
+                    f"display:grid;grid-template-columns:3fr 1fr 1fr;gap:0.75rem;'>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;'>Total</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_p)}</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_a)}</span></div>",
+                    unsafe_allow_html=True)
+
+            # ── Step 2: Savings ───────────────────────────────────────────────
+            elif idx == 2:
+                st.markdown(f'<div class="step-header">{s["title"]}</div>'
+                            f'<div class="step-sub">{s["subtitle"]}</div>',
+                            unsafe_allow_html=True)
+                _col_hint()
+                for fkey, flabel in SIMPLE_SAVINGS_FIELDS:
+                    fk, pv, av = _field_row(flabel, fkey, data)
+                    collected[fk] = {"proj": pv, "actual": av}
+                sub_p = sum(v["proj"]   for v in collected.values())
+                sub_a = sum(v["actual"] for v in collected.values())
+                st.markdown(
+                    f"<div style='border-top:2px solid {NAVY};margin-top:0.75rem;padding-top:0.6rem;"
+                    f"display:grid;grid-template-columns:3fr 1fr 1fr;gap:0.75rem;'>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;'>Total</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_p)}</span>"
+                    f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;display:block;'>{fmt(sub_a)}</span></div>",
+                    unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            nl, nr = st.columns(2)
+            with nl:
+                back_clicked = st.form_submit_button("Back" if idx > 0 else "Home", use_container_width=True)
+            with nr:
+                next_clicked = st.form_submit_button("Next" if idx < total - 1 else "View Dashboard", use_container_width=True, type="primary")
+
+    if next_clicked:
+        for fk, vals in collected.items():
+            data[fk] = vals
+        st.session_state.data = data
+        if idx < total - 1:
+            st.session_state.step += 1
+        else:
+            st.session_state.page = "dashboard"
+        st.rerun()
+    if back_clicked:
+        for fk, vals in collected.items():
+            data[fk] = vals
+        st.session_state.data = data
+        if idx > 0:
+            st.session_state.step -= 1
+        else:
+            st.session_state.page = "mode_select"
+        st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -395,90 +510,112 @@ def page_complex_step():
     idx     = st.session_state.cx_step
     total   = len(COMPLEX_SECTIONS)
     section = COMPLEX_SECTIONS[idx]
+    skey    = section["key"]
+    has_toggle = skey in ("debt", "fixed", "variable")  # savings = always essential, income = no toggle
 
-    banner()
+    banner(progress=(idx + 1) / total, progress_label=f"Section {idx+1} of {total}")
     st.markdown('<div class="inner">', unsafe_allow_html=True)
 
-    _, col_sw, _ = st.columns([3, 1, 3])
-    with col_sw:
-        if st.button("Switch Mode", use_container_width=True, key="sw_cx"):
-            st.session_state.page = "mode_select"
-            st.rerun()
+    # Centred narrow container
+    _, mid, _ = st.columns([1, 4, 1])
+    with mid:
+        prev   = st.session_state.cx_data.get(skey, {})
+        fields = section["fields"]
 
-    st.progress((idx + 1) / total)
-    st.markdown(f"<p style='font-size:0.78rem;color:#374151;margin-top:-0.4rem;'>"
-                f"Section {idx+1} of {total}</p>", unsafe_allow_html=True)
+        with st.form(key=f"cx_form_{idx}"):
+            st.markdown(f'<div class="step-header">{section["title"]}</div>'
+                        f'<div class="step-sub">{section["subtitle"]}</div>',
+                        unsafe_allow_html=True)
 
-    skey    = section["key"]
-    prev    = st.session_state.cx_data.get(skey, {})
-    fields  = section["fields"]
+            # Column headers
+            if has_toggle:
+                hcols = st.columns([3, 1, 1, 1])
+                labels = ["Line Item", "Essential?",
+                          "Projected\nWhat you think", "Actual\nWhat your bank statement says"]
+            else:
+                hcols = st.columns([3, 1, 1])
+                labels = ["Line Item",
+                          "Projected\nWhat you think", "Actual\nWhat your bank statement says"]
 
-    st.markdown(f'<div class="step-header">{section["title"]}</div>'
-                f'<div class="step-sub">{section["subtitle"]}</div>',
+            for hc, lbl in zip(hcols, labels):
+                parts = lbl.split("\n")
+                sub_part = f"<br><span style='font-weight:400;font-style:italic;text-transform:none;letter-spacing:0;font-size:0.65rem;'>{parts[1]}</span>" if len(parts) > 1 else ""
+                with hc:
+                    st.markdown(
+                        f"<span style='font-size:0.72rem;font-weight:600;color:#6b7280;"
+                        f"text-transform:uppercase;letter-spacing:0.05em;'>{parts[0]}{sub_part}</span>",
+                        unsafe_allow_html=True)
+
+            st.markdown("<div style='border-top:1px solid #e5e7eb;margin-bottom:0.5rem;'></div>",
+                        unsafe_allow_html=True)
+
+            field_vals = {}
+            for fkey, flabel in fields:
+                p_prev  = prev.get(fkey, {}).get("proj",      0.0)
+                a_prev  = prev.get(fkey, {}).get("actual",    0.0)
+                if skey == "savings":
+                    ess_prev = True
+                else:
+                    ess_prev = prev.get(fkey, {}).get("essential", False)
+
+                if has_toggle:
+                    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+                else:
+                    c1, c3, c4 = st.columns([3, 1, 1])
+
+                with c1:
+                    st.markdown(f"<p style='padding-top:0.45rem;color:#111827;font-size:0.88rem;"
+                                f"margin:0;'>{flabel}</p>", unsafe_allow_html=True)
+                if has_toggle:
+                    with c2:
+                        ess_val = st.toggle("", value=ess_prev,
+                                            key=f"cx_{skey}_{fkey}_ess",
+                                            label_visibility="collapsed")
+                else:
+                    ess_val = True
+
+                with c3:
+                    p_val = st.number_input("", min_value=0.0, value=float(p_prev),
+                                            step=100.0, format="%.0f",
+                                            key=f"cx_{skey}_{fkey}_p", label_visibility="collapsed")
+                with c4:
+                    a_val = st.number_input("", min_value=0.0, value=float(a_prev),
+                                            step=100.0, format="%.0f",
+                                            key=f"cx_{skey}_{fkey}_a", label_visibility="collapsed")
+                field_vals[fkey] = {"proj": p_val, "actual": a_val, "essential": ess_val}
+
+            # Subtotal
+            sub_p = sum(v["proj"]   for v in field_vals.values())
+            sub_a = sum(v["actual"] for v in field_vals.values())
+            grid_cols = "3fr 1fr 1fr 1fr" if has_toggle else "3fr 1fr 1fr"
+            st.markdown(
+                f"<div style='border-top:2px solid {NAVY};margin-top:0.75rem;padding-top:0.6rem;"
+                f"display:grid;grid-template-columns:{grid_cols};gap:0.75rem;'>"
+                f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;'>Section Total</span>"
+                + ("<span></span>" if has_toggle else "") +
+                f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;"
+                f"display:block;'>{fmt(sub_p)}</span>"
+                f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;"
+                f"display:block;'>{fmt(sub_a)}</span>"
+                f"</div>",
                 unsafe_allow_html=True)
 
-    # Column headers
-    h1, h2, h3 = st.columns([2, 1, 1])
-    with h1: st.markdown("<span style='font-size:0.72rem;font-weight:600;color:#6b7280;"
-                         "text-transform:uppercase;letter-spacing:0.05em;'>Line Item</span>",
-                         unsafe_allow_html=True)
-    with h2: st.markdown("<span style='font-size:0.72rem;font-weight:600;color:#6b7280;"
-                         "text-transform:uppercase;letter-spacing:0.05em;'>Projected (R)</span>",
-                         unsafe_allow_html=True)
-    with h3: st.markdown("<span style='font-size:0.72rem;font-weight:600;color:#6b7280;"
-                         "text-transform:uppercase;letter-spacing:0.05em;'>Actual (R)</span>",
-                         unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            nl, nr = st.columns(2)
+            with nl:
+                back_clicked = st.form_submit_button("Back" if idx > 0 else "Home", use_container_width=True)
+            with nr:
+                next_clicked = st.form_submit_button("Next" if idx < total - 1 else "View Dashboard", use_container_width=True, type="primary")
 
-    st.markdown("<div style='border-top:1px solid #e5e7eb;margin-bottom:0.5rem;'></div>",
-                unsafe_allow_html=True)
-
-    field_vals = {}
-    for fkey, flabel in fields:
-        p_prev = prev.get(fkey, {}).get("proj",   0.0)
-        a_prev = prev.get(fkey, {}).get("actual",  0.0)
-        c1, c2, c3 = st.columns([2, 1, 1])
-        with c1:
-            st.markdown(f"<p style='padding-top:0.45rem;color:#111827;font-size:0.88rem;"
-                        f"margin:0;'>{flabel}</p>", unsafe_allow_html=True)
-        with c2:
-            p_val = st.number_input("", min_value=0.0, value=float(p_prev),
-                                    step=100.0, format="%.2f",
-                                    key=f"cx_{skey}_{fkey}_p", label_visibility="collapsed")
-        with c3:
-            a_val = st.number_input("", min_value=0.0, value=float(a_prev),
-                                    step=100.0, format="%.2f",
-                                    key=f"cx_{skey}_{fkey}_a", label_visibility="collapsed")
-        field_vals[fkey] = {"proj": p_val, "actual": a_val}
-
-    # Subtotal
-    sub_p = sum(v["proj"]   for v in field_vals.values())
-    sub_a = sum(v["actual"] for v in field_vals.values())
-    st.markdown(
-        f"<div style='border-top:2px solid {NAVY};margin-top:0.75rem;padding-top:0.6rem;"
-        f"display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;'>"
-        f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;'>Section Total</span>"
-        f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;"
-        f"display:block;'>{fmt(sub_p)}</span>"
-        f"<span style='font-weight:700;color:{NAVY};font-size:0.88rem;text-align:right;"
-        f"display:block;'>{fmt(sub_a)}</span>"
-        f"</div>",
-        unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    nl, _, nr = st.columns([1, 2, 1])
-    with nl:
-        lbl = "Back" if idx > 0 else "Change Month"
-        if st.button(lbl, use_container_width=True, key="cx_back"):
-            st.session_state.cx_data[skey] = field_vals
-            if idx > 0: st.session_state.cx_step -= 1
-            else:        st.session_state.page = "month"
-            st.rerun()
-    with nr:
-        lbl = "Next" if idx < total - 1 else "View Dashboard"
-        if st.button(lbl, use_container_width=True, key="cx_next"):
+        if next_clicked:
             st.session_state.cx_data[skey] = field_vals
             if idx < total - 1: st.session_state.cx_step += 1
             else:                st.session_state.page = "cx_dashboard"
+            st.rerun()
+        if back_clicked:
+            st.session_state.cx_data[skey] = field_vals
+            if idx > 0: st.session_state.cx_step -= 1
+            else:        st.session_state.page = "mode_select"
             st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -489,24 +626,32 @@ def page_complex_step():
 def compute_simple():
     d = st.session_state.data
     def g(k, t): return d.get(k, {}).get(t, 0)
-    ip, ia = g("income","proj"),            g("income","actual")
-    ap, aa = g("additional_income","proj"), g("additional_income","actual")
-    dp, da = g("debt","proj"),              g("debt","actual")
-    fp, fa = g("fixed","proj"),             g("fixed","actual")
-    vp, va = g("variable","proj"),          g("variable","actual")
-    sp, sa = g("savings","proj"),           g("savings","actual")
-    tip, tia = ip+ap, ia+aa
-    top_, toa = dp+fp+vp+sp, da+fa+va+sa
-    return dict(ip=ip,ia=ia,ap=ap,aa=aa,dp=dp,da=da,fp=fp,fa=fa,
-                vp=vp,va=va,sp=sp,sa=sa,tip=tip,tia=tia,
-                top_=top_,toa=toa,surp_p=tip-top_,surp_a=tia-toa)
+
+    # Income
+    tip = sum(g(k, "proj")   for k, _ in SIMPLE_INCOME_FIELDS)
+    tia = sum(g(k, "actual") for k, _ in SIMPLE_INCOME_FIELDS)
+
+    # Expenses (single line items)
+    dp = g("exp_debt",     "proj");  da = g("exp_debt",     "actual")
+    fp = g("exp_fixed",    "proj");  fa = g("exp_fixed",    "actual")
+    vp = g("exp_variable", "proj");  va = g("exp_variable", "actual")
+
+    # Savings
+    sp = sum(g(k, "proj")   for k, _ in SIMPLE_SAVINGS_FIELDS)
+    sa = sum(g(k, "actual") for k, _ in SIMPLE_SAVINGS_FIELDS)
+
+    top_ = dp + fp + vp + sp
+    toa  = da + fa + va + sa
+    return dict(dp=dp,da=da,fp=fp,fa=fa,vp=vp,va=va,sp=sp,sa=sa,
+                tip=tip,tia=tia,top_=top_,toa=toa,
+                surp_p=tip-top_,surp_a=tia-toa)
 
 
 def build_simple_dashboard(c, month_str):
     def vc(v): return "#059669" if v >= 0 else "#dc2626"
     def vs(v):
         sign = "+" if v >= 0 else "-"
-        return f"{sign}R {abs(v):,.2f}"
+        return f"{sign}R {int(round(abs(v))):,}"
 
     surplus_a   = c["surp_a"]
     total_inc_a = c["tia"]
@@ -528,7 +673,7 @@ def build_simple_dashboard(c, month_str):
     sav_text = (f"{c['sa']/total_inc_a*100:.1f}% of income"
                 if total_inc_a > 0 else "—")
     req_red  = max(0, -surplus_a)
-    req_txt  = f"R {req_red:,.2f}" if req_red > 0 else "None needed"
+    req_txt  = fmt(req_red) if req_red > 0 else "None needed"
     req_col  = "#dc2626" if req_red > 0 else "#059669"
     net_col  = vc(surplus_a)
 
@@ -536,6 +681,12 @@ def build_simple_dashboard(c, month_str):
         "labels": ["Debt Repayments","Fixed Expenses","Variable Expenses","Savings & Investments"],
         "values": [c["da"],c["fa"],c["va"],c["sa"]],
         "colors": ["#3b82f6","#8b5cf6","#ec4899","#f59e0b"],
+        "text":   [
+            "Home loan, vehicle, credit cards",
+            "Rent, insurance, medical aid, subscriptions",
+            "Groceries, fuel, dining, entertainment",
+            "Retirement, unit trusts, tax-free savings"
+        ],
     })
     bar_data = json.dumps({
         "cats":   ["Debt Repayments","Fixed Expenses","Variable Expenses","Savings & Investments"],
@@ -578,8 +729,6 @@ def build_simple_dashboard(c, month_str):
 
     table_rows = (
         trow("Income",0,0,section=True) +
-        trow("Monthly Income",    c["ip"],c["ia"],row_type="income") +
-        trow("Additional Income", c["ap"],c["aa"],row_type="income") +
         trow("Total Income",c["tip"],c["tia"],bold=True,row_type="income") +
         trow("Outflows",0,0,section=True) +
         trow("Debt Repayments",       c["dp"],c["da"],row_type="expense") +
@@ -591,7 +740,7 @@ def build_simple_dashboard(c, month_str):
     )
 
     summary_rows = (
-        srow("Net Position", f'<span style="font-weight:700;color:{net_col};">{fmt(surplus_a)}</span>') +
+        srow("What you should have left", f'<span style="font-weight:700;color:{net_col};">{fmt(surplus_a)}</span>') +
         srow("Variable Spending", f'<span style="font-weight:700;color:#111827;">{var_text}</span>') +
         srow("Savings Rate", f'<span style="font-weight:700;color:#111827;">{sav_text}</span>') +
         srow("Largest Expense Category", f'<span style="font-weight:700;color:#111827;">{largest}</span>') +
@@ -667,7 +816,8 @@ Plotly.newPlot('pie',[{{
   texttemplate:'<b>%{{label}}</b><br>%{{percent:.1%}}',
   textposition:'outside',
   textfont:{{size:13,color:'#1f2937',family:'Inter'}},
-  hovertemplate:'<b>%{{label}}</b><br>R %{{value:,.2f}}<br>%{{percent:.1%}}<extra></extra>',
+  customdata:pd.text,
+  hovertemplate:'<b>%{{label}}</b><br>%{{customdata}}<br>R %{{value:,}}<br>%{{percent:.1%}}<extra></extra>',
   automargin:true,
   pull:[0.03,0.03,0.03,0.03],
 }}],
@@ -683,7 +833,7 @@ Plotly.newPlot('bar',[
   {{paper_bgcolor:'#fff',plot_bgcolor:'#fff',font:{{family:'Inter',color:'#374151',size:11}},
     margin:{{l:70,r:10,t:30,b:60}},barmode:'group',bargap:0.25,bargroupgap:0.08,
     xaxis:{{showgrid:false,linecolor:'#e5e7eb',tickfont:{{size:11}}}},
-    yaxis:{{showgrid:true,gridcolor:'#f3f4f6',tickprefix:'R ',tickformat:',.0f'}},
+    yaxis:{{showgrid:true,gridcolor:'#f3f4f6',tickprefix:'R ',tickformat:',d'}},
     legend:{{orientation:'h',x:0,y:1.08,font:{{size:11}}}},autosize:true}},
   {{responsive:true,displayModeBar:false}});
 </script></body></html>"""
@@ -729,11 +879,14 @@ def page_simple_dashboard():
 def compute_complex():
     d = st.session_state.cx_data
 
-    def sec_total(skey, t):
-        return sum(v.get(t, 0) for v in d.get(skey, {}).values())
-
     def field(skey, fkey, t):
         return d.get(skey, {}).get(fkey, {}).get(t, 0)
+
+    def is_essential(skey, fkey):
+        # savings always essential; income irrelevant; others use toggle
+        if skey in ("savings", "income"):
+            return True
+        return d.get(skey, {}).get(fkey, {}).get("essential", True)
 
     # Income
     inc_fields = ["salary","additional","rental","business","other_income"]
@@ -746,34 +899,51 @@ def compute_complex():
     debt_fields = ["home_loan","vehicle","credit_card","personal_loan","student_loan","other_debt"]
     debt_p = {f: field("debt", f, "proj")   for f in debt_fields}
     debt_a = {f: field("debt", f, "actual") for f in debt_fields}
-    tdp = sum(debt_p.values())
-    tda = sum(debt_a.values())
+    tdp = sum(debt_p.values()); tda = sum(debt_a.values())
 
     # Fixed
     fixed_fields = ["rent","insurance","medical_aid","rates","fibre","phone",
                     "school_fees","subscriptions","security","domestic","other_fixed"]
     fixed_p = {f: field("fixed", f, "proj")   for f in fixed_fields}
     fixed_a = {f: field("fixed", f, "actual") for f in fixed_fields}
-    tfp = sum(fixed_p.values())
-    tfa = sum(fixed_a.values())
+    tfp = sum(fixed_p.values()); tfa = sum(fixed_a.values())
 
     # Variable
     var_fields = ["groceries","fuel","electricity","clothing","entertainment",
                   "restaurants","alcohol","self_care","travel","misc"]
     var_p = {f: field("variable", f, "proj")   for f in var_fields}
     var_a = {f: field("variable", f, "actual") for f in var_fields}
-    tvp = sum(var_p.values())
-    tva = sum(var_a.values())
+    tvp = sum(var_p.values()); tva = sum(var_a.values())
 
-    # Savings
+    # Savings (always essential)
     sav_fields = ["ra","unit_trusts","tfsa","offshore","emergency","other_savings"]
     sav_p = {f: field("savings", f, "proj")   for f in sav_fields}
     sav_a = {f: field("savings", f, "actual") for f in sav_fields}
-    tsp = sum(sav_p.values())
-    tsa = sum(sav_a.values())
+    tsp = sum(sav_p.values()); tsa = sum(sav_a.values())
 
     total_out_p = tdp + tfp + tvp + tsp
     total_out_a = tda + tfa + tva + tsa
+
+    # Essential / Non-Essential actual totals (savings always essential)
+    ess_a = tsa  # start with savings
+    non_a = 0.0
+    for skey, fkeys in [("debt", debt_fields), ("fixed", fixed_fields), ("variable", var_fields)]:
+        for fk in fkeys:
+            val = field(skey, fk, "actual")
+            if is_essential(skey, fk):
+                ess_a += val
+            else:
+                non_a += val
+
+    ess_p = tsp  # savings projected
+    non_p = 0.0
+    for skey, fkeys in [("debt", debt_fields), ("fixed", fixed_fields), ("variable", var_fields)]:
+        for fk in fkeys:
+            val = field(skey, fk, "proj")
+            if is_essential(skey, fk):
+                ess_p += val
+            else:
+                non_p += val
 
     return dict(
         tip=tip, tia=tia,
@@ -785,6 +955,8 @@ def compute_complex():
         total_out_p=total_out_p, total_out_a=total_out_a,
         surp_p=tip - total_out_p,
         surp_a=tia - total_out_a,
+        ess_p=ess_p, ess_a=ess_a,
+        non_p=non_p, non_a=non_a,
     )
 
 
@@ -795,7 +967,7 @@ def build_complex_dashboard(c, month_str):
     def vcn(v): return "#dc2626" if v > 0 else "#059669"  # for overspend (positive=bad)
     def vs(v, pct_base=None):
         sign = "+" if v >= 0 else "-"
-        base = f"{sign}R {abs(v):,.2f}"
+        base = f"{sign}R {int(round(abs(v))):,}"
         if pct_base and pct_base > 0:
             p = abs(v / pct_base * 100)
             base += f" ({p:.1f}%)"
@@ -808,18 +980,17 @@ def build_complex_dashboard(c, month_str):
     sav_rate   = (c["tsa"] / tia * 100)      if tia > 0 else 0
     dti        = (c["tda"] / tia * 100)      if tia > 0 else 0
     fixed_rat  = ((c["tda"]+c["tfa"]) / tia * 100) if tia > 0 else 0
-    needs      = c["tda"] + c["tfa"]
-    wants      = c["tva"]
-    needs_pct  = (needs / tia * 100) if tia > 0 else 0
-    wants_pct  = (wants / tia * 100) if tia > 0 else 0
+    total_exp  = c["total_out_a"]
+    ess_pct    = (c["ess_a"] / total_exp * 100) if total_exp > 0 else 0
+    non_pct    = (c["non_a"] / total_exp * 100) if total_exp > 0 else 0
     req_red    = max(0, -surp)
 
     # Health score
     if tia == 0:
         health_col, health_txt = "#f59e0b", "Insufficient Data"
-    elif surp >= 0 and dti < 35 and sav_rate >= 10:
+    elif surp >= 0 and dti < 30 and sav_rate >= 20:
         health_col, health_txt = "#059669", "Financially Healthy"
-    elif surp >= 0 and (dti < 45 or sav_rate >= 5):
+    elif surp >= 0 and (dti < 40 or sav_rate >= 10):
         health_col, health_txt = "#f59e0b", "Moderate Concern"
     else:
         health_col, health_txt = "#dc2626", "High Concern"
@@ -962,8 +1133,8 @@ def build_complex_dashboard(c, month_str):
     if fixed_rat > 60 and tia > 0:
         insights.append(("warning", "A large portion of income is tied up in fixed costs, which can reduce flexibility."))
 
-    if wants_pct > 30 and tia > 0:
-        insights.append(("caution", f"Lifestyle spending is relatively high at {wants_pct:.1f}% of income."))
+    if non_pct > 30 and tia > 0:
+        insights.append(("caution", f"Non-essential spending is relatively high at {non_pct:.1f}% of total expenses."))
 
     if c["var_a"].get("restaurants", 0) + c["var_a"].get("alcohol", 0) > tia * 0.1 and tia > 0:
         insights.append(("caution", "Spending on dining and entertainment is above average and may be an area to review."))
@@ -994,12 +1165,12 @@ def build_complex_dashboard(c, month_str):
                 f'<span style="font-weight:700;color:#111827;font-size:0.84rem;">{value_str}</span></div>')
 
     ratios_html = (
-        ratio_row("Savings Rate", pct(sav_rate), "Target: >15%") +
-        ratio_row("Debt-to-Income Ratio", pct(dti), "Safe zone: <43%") +
+        ratio_row("Savings Rate", pct(sav_rate), "Target: >20%") +
+        ratio_row("Debt-to-Income Ratio", pct(dti), "Safe zone: <30%") +
         ratio_row("Fixed Obligation Ratio", pct(fixed_rat), "Debt + fixed costs vs income") +
-        ratio_row("Needs (Debt+Fixed)", pct(needs_pct)) +
-        ratio_row("Wants (Variable)", pct(wants_pct)) +
-        ratio_row("Net Surplus / Deficit", fmt(surp)) +
+        ratio_row("Essential Spending", pct(ess_pct), "% of total expenses") +
+        ratio_row("Non-Essential Spending", pct(non_pct), "% of total expenses") +
+        ratio_row("Income Surplus", fmt(surp)) +
         ratio_row("Required Reduction to Break Even",
                   fmt(req_red) if req_red > 0 else "None needed")
     )
@@ -1068,7 +1239,7 @@ def build_complex_dashboard(c, month_str):
   <div class="card">
     <div class="card-title">Advisor Insights & Financial Health</div>
     <div class="health-badge">{health_txt}</div>
-    <div class="pill">{pt}</div>
+    <div class="pill">Income Surplus: {fmt(surp)}</div>
     {insights_html}
   </div>
 
@@ -1095,7 +1266,7 @@ Plotly.newPlot('pie',[
     direction:'clockwise',
     marker:{{colors:po.colors,line:{{color:'#fff',width:1}}}},
     textinfo:'none',
-    hovertemplate:'<b>%{{label}}</b><br>R %{{value:,.2f}}<extra></extra>',
+    hovertemplate:'<b>%{{label}}</b><br>R %{{value:,d}}<extra></extra>',
     name:'Subcategories',
     domain:{{x:[0,1],y:[0,1]}}
   }},
@@ -1111,7 +1282,7 @@ Plotly.newPlot('pie',[
     texttemplate:'<b>%{{label}}</b><br>%{{percent:.1%}}',
     textposition:'outside',
     textfont:{{size:13,color:'#1f2937',family:'Inter'}},
-    hovertemplate:'<b>%{{label}}</b><br>R %{{value:,.2f}}<br>%{{percent:.1%}}<extra></extra>',
+    hovertemplate:'<b>%{{label}}</b><br>R %{{value:,d}}<br>%{{percent:.1%}}<extra></extra>',
     automargin:true,
     name:'Sections',
     domain:{{x:[0,1],y:[0,1]}}
@@ -1244,9 +1415,7 @@ def build_simple_pdf(c, month_str):
         data.append([label, _fmt_r(p), _fmt_r(a), _var_str(v)])
 
     add_sec("INCOME")
-    add_row("Monthly Income",    c["ip"], c["ia"])
-    add_row("Additional Income", c["ap"], c["aa"])
-    add_row("Total Income",      c["tip"], c["tia"], bold=True)
+    add_row("Total Income", c["tip"], c["tia"], bold=True)
     add_sec("OUTFLOWS")
     add_row("Debt Repayments",       c["dp"], c["da"])
     add_row("Fixed Expenses",        c["fp"], c["fa"])
@@ -1299,8 +1468,8 @@ def build_simple_pdf(c, month_str):
     req_red   = max(0, -surplus_a)
 
     sum_data = [
-        ["Net Position",                fmt(surplus_a)],
-        ["Savings Rate",                f"{sav_rate:.1f}% of income" if tia>0 else "—"],
+        ["What you should have left",        fmt(surplus_a)],
+        ["Savings Rate",                     f"{sav_rate:.1f}% of income" if tia>0 else "—"],
         ["Required Reduction to Break Even", fmt(req_red) if req_red>0 else "None needed"],
     ]
     sum_tbl = Table(sum_data, colWidths=[10*cm, 8.5*cm])
@@ -1352,18 +1521,17 @@ def build_complex_pdf(c, month_str):
                 "rental":"Rental Income","business":"Business Income",
                 "other_income":"Other Income"}
 
-    col_w = [7*cm, 3*cm, 3*cm, 3*cm, 2.5*cm]
-    data  = [["Category", "Projected", "Actual", "Variance", "% Diff"]]
+    col_w = [9*cm, 3.5*cm, 3.5*cm, 3.5*cm]
+    data  = [["Category", "Projected", "Actual", "Variance"]]
 
     def add_sec(label):
-        data.append([label, "", "", "", ""])
+        data.append([label, "", "", ""])
 
     def add_row(label, p, a, bold=False):
         if not bold and p == 0 and a == 0:
             return
-        v    = a - p
-        pct  = f"{abs(v/p*100):.1f}%" if p > 0 else "—"
-        data.append([label, _fmt_r(p), _fmt_r(a), _var_str(v), pct])
+        v = a - p
+        data.append([label, _fmt_r(p), _fmt_r(a), _var_str(v)])
 
     add_sec("INCOME")
     for fk, fl in inc_lm.items():
@@ -1410,7 +1578,7 @@ def build_complex_pdf(c, month_str):
             try:
                 sign = 1 if row[3].startswith("+") else -1
                 col  = _GREEN_RL if sign > 0 else _RED_RL
-                ts.append(("TEXTCOLOR",(3,ri),(4,ri),col))
+                ts.append(("TEXTCOLOR",(3,ri),(3,ri),col))
             except Exception:
                 pass
 
@@ -1428,18 +1596,18 @@ def build_complex_pdf(c, month_str):
     sav_rate = (c["tsa"]/tia*100) if tia > 0 else 0
     dti      = (c["tda"]/tia*100) if tia > 0 else 0
     fixed_r  = ((c["tda"]+c["tfa"])/tia*100) if tia > 0 else 0
-    needs_p  = ((c["tda"]+c["tfa"])/tia*100) if tia > 0 else 0
-    wants_p  = (c["tva"]/tia*100) if tia > 0 else 0
+    ess_p    = (c["ess_a"]/tia*100) if tia > 0 else 0
+    non_p    = (c["non_a"]/tia*100) if tia > 0 else 0
     req_red  = max(0, -surp)
 
     ratio_data = [
         ["Metric",                          "Value",          "Benchmark"],
-        ["Net Surplus / Deficit",           _fmt_r(surp),     ""],
-        ["Savings Rate",                    f"{sav_rate:.1f}%","Target: >15%"],
-        ["Debt-to-Income Ratio",            f"{dti:.1f}%",    "Safe: <43%"],
+        ["Income Surplus",                  _fmt_r(surp),     ""],
+        ["Savings Rate",                    f"{sav_rate:.1f}%","Target: >20%"],
+        ["Debt-to-Income Ratio",            f"{dti:.1f}%",    "Safe: <30%"],
         ["Fixed Obligation Ratio",          f"{fixed_r:.1f}%","<60% recommended"],
-        ["Needs (Debt + Fixed)",            f"{needs_p:.1f}%",""],
-        ["Wants (Variable)",                f"{wants_p:.1f}%",""],
+        ["Essential Spending",              f"{ess_p:.1f}%",  "Savings + essentials"],
+        ["Non-Essential Spending",          f"{non_p:.1f}%",  "Discretionary items"],
         ["Required Reduction to Break Even",_fmt_r(req_red) if req_red>0 else "None needed",""],
     ]
     rtbl = Table(ratio_data, colWidths=[8*cm, 4*cm, 6.5*cm])
@@ -1502,7 +1670,7 @@ def build_simple_excel(c, month_str):
     ws.append([])
 
     # Header row
-    headers = ["Category", "Projected", "Actual", "Variance", "% Diff"]
+    headers = ["Category", "Projected", "Actual", "Variance"]
     ws.append(headers)
     for col, _ in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col)
@@ -1512,20 +1680,19 @@ def build_simple_excel(c, month_str):
         cell.alignment = right_al if col > 1 else left_al
 
     def add_section(label):
-        ws.append([label, "", "", "", ""])
+        ws.append([label, "", "", ""])
         r = ws.max_row
-        for col in range(1, 6):
+        for col in range(1, 5):
             cell = ws.cell(row=r, column=col)
             cell.font   = sec_font
             cell.fill   = grey_fill
             cell.border = _border()
 
     def add_row(label, p, a, bold=False):
-        v    = a - p
-        vpct = f"{abs(v/p*100):.1f}%" if p != 0 else "—"
-        ws.append([label, p, a, v, vpct])
+        v = a - p
+        ws.append([label, p, a, v])
         r = ws.max_row
-        for col in range(1, 6):
+        for col in range(1, 5):
             cell = ws.cell(row=r, column=col)
             cell.fill   = white_fill
             cell.border = _border()
@@ -1533,16 +1700,14 @@ def build_simple_excel(c, month_str):
             if col > 1:
                 cell.alignment = right_al
                 if col in (2, 3):
-                    cell.number_format = 'R #,##0.00'
+                    cell.number_format = 'R #,##0'
                 if col == 4:
-                    cell.number_format = 'R #,##0.00'
+                    cell.number_format = 'R #,##0'
                     cell.font = Font(name="Calibri", bold=bold,
                                      color=GREEN_HEX if v >= 0 else RED_HEX, size=10)
 
     add_section("INCOME")
-    add_row("Monthly Income",    c["ip"], c["ia"])
-    add_row("Additional Income", c["ap"], c["aa"])
-    add_row("Total Income",      c["tip"], c["tia"], bold=True)
+    add_row("Total Income", c["tip"], c["tia"], bold=True)
 
     add_section("OUTFLOWS")
     add_row("Debt Repayments",       c["dp"], c["da"])
@@ -1552,7 +1717,7 @@ def build_simple_excel(c, month_str):
     add_row("Total Outflows",        c["top_"], c["toa"], bold=True)
     add_row("Net Surplus / Deficit", c["surp_p"], c["surp_a"], bold=True)
 
-    _set_col_widths(ws, [28, 16, 16, 16, 10])
+    _set_col_widths(ws, [28, 16, 16, 16])
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1582,7 +1747,7 @@ def build_complex_excel(c, month_str):
     ws.row_dimensions[1].height = 22
     ws.append([])
 
-    headers = ["Category", "Projected", "Actual", "Variance", "% Diff"]
+    headers = ["Category", "Projected", "Actual", "Variance"]
     ws.append(headers)
     for col, _ in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col)
@@ -1592,20 +1757,19 @@ def build_complex_excel(c, month_str):
         cell.alignment = right_al if col > 1 else left_al
 
     def add_section(label):
-        ws.append([label, "", "", "", ""])
+        ws.append([label, "", "", ""])
         r = ws.max_row
-        for col in range(1, 6):
+        for col in range(1, 5):
             cell = ws.cell(row=r, column=col)
             cell.font   = sec_font
             cell.fill   = grey_fill
             cell.border = _border()
 
     def add_row(label, p, a, bold=False):
-        v    = a - p
-        vpct = f"{abs(v/p*100):.1f}%" if p != 0 else "—"
-        ws.append([label, p, a, v, vpct])
+        v = a - p
+        ws.append([label, p, a, v])
         r = ws.max_row
-        for col in range(1, 6):
+        for col in range(1, 5):
             cell = ws.cell(row=r, column=col)
             cell.fill   = white_fill
             cell.border = _border()
@@ -1613,9 +1777,9 @@ def build_complex_excel(c, month_str):
             if col > 1:
                 cell.alignment = right_al
                 if col in (2, 3):
-                    cell.number_format = 'R #,##0.00'
+                    cell.number_format = 'R #,##0'
                 if col == 4:
-                    cell.number_format = 'R #,##0.00'
+                    cell.number_format = 'R #,##0'
                     cell.font = Font(name="Calibri", bold=bold,
                                      color=GREEN_HEX if v >= 0 else RED_HEX, size=10)
 
@@ -1664,7 +1828,7 @@ def build_complex_excel(c, month_str):
 
     add_row("Net Surplus / Deficit", c["surp_p"], c["surp_a"], bold=True)
 
-    _set_col_widths(ws, [30, 16, 16, 16, 10])
+    _set_col_widths(ws, [30, 16, 16, 16])
 
     buf = io.BytesIO()
     wb.save(buf)
